@@ -10,6 +10,9 @@
 <script type="text/javascript" src="https://www.huangwx.cn/js/sweetalert-dev.js"></script>
 
 </head>
+
+
+
 <body>
 <script src="https://cdn.jsdelivr.net/npm/live2d-widget@3.0.4/lib/L2Dwidget.min.js"></script>
 <p id="day">0</p>
