@@ -1,9 +1,194 @@
-﻿  function play(word){
-    word.play();
+﻿
+var stompClient = null;
+var userID = null;
+var init={'questions':[{'question':'jQuery是什么？','answers':['JavaScript库','CSS库','PHP框架','以上都不是'],'correctAnswer':1},{'question':'找出不同类的一项?','answers':['写字台','沙发','电视','桌布'],'correctAnswer':3},{'question':'国土面积最大的国家是：','answers':['美国','中国','俄罗斯','加拿大'],'correctAnswer':3},{'question':'月亮距离地球多远？','answers':['18万公里','38万公里','100万公里','180万公里'],'correctAnswer':2},{'question':'源氏大招怎么念？','answers':['有基佬拉开我裤链','人鬼合一','我的武士之魂在燃烧','尝尝龙神剑的力量吧'],'correctAnswer':1}]};
+var Ownscore = 0;
+var OwnTrue = 0;
+function startTime(){                     //计时函数
+    var today=new Date();
+    var h=today.getHours();
+    var m=today.getMinutes();
+    var s=today.getSeconds();// 在小于10的数字前加一个‘0’
+    m=checkTime(m);
+    s=checkTime(s);
+    document.getElementById('txt').innerHTML=h+":"+m+":"+s;
+    t=setTimeout(function(){startTime()},500);
+}
+function checkTime(i){
+    if (i<10){
+        i="0" + i;
+    }
+    return i;
 }
 
-   var  list_right="",
-        list_wrong="";
+function showNum(num){
+    if(num < 10){
+        return "0" + num;
+    }
+    else
+        return String(num);
+}//处理单个数字；
+function timeStep() {
+    var count = 0;
+    var timer = null;
+    timer = setInterval(function(){
+        count++;
+        $("#sec").html( showNum(count % 60) ) ;
+        $("#min").html(showNum(parseInt(count / 60) % 60));  //parseInt()方法：将一个字符串，转化成一个整数；
+        $("#hou").html(showNum(parseInt(count / 3600))); //处理时分秒；
+    }, 1000);
+}
+function connect() {
+    userID = sessionStorage.getItem("userID");
+    var socket = new SockJS('/ws');
+    stompClient = Stomp.over(socket);
+
+    stompClient.connect({}, onConnected, onError);
+//    event.preventDefault();
+}
+
+
+function onConnected() {
+    stompClient.subscribe("/user/topic/game",onMessageReceived)
+    stompClient.send("/app/game.add_user", {}, JSON.stringify({sender:userID,type:'SEARCH'}));
+
+}
+
+function ExitGame(){
+    stompClient.disconnect();
+    //TODO 断开连接后返回原来界面
+}
+
+function onError(error) {
+    window.alert("an unexpected error happened ! please exit")
+}
+
+//点对点通信前缀添加“\app"
+function onMessageReceived(payload){
+    var message = JSON.parse(payload.body);
+    //收到服务器确认搜素匹配玩家
+    var chatmsg = message.chatMessage;
+    var type = chatmsg.type;
+    var code = Number(message.code);
+    if (code === 200){
+        if(type === 'SEARCH'){
+            //收到信息，提交匹配请求
+            var chatMessage ={
+                type: 'SEARCH',
+                sender: userID,
+                content: 'apply to Match'
+            };
+            stompClient.send("/app/game.search",{},JSON.stringify(chatMessage));
+            //document.write('<div class="atom-wrapper"> <div style="color: #6fb2e5" class="la-ball-atom la-3x"> <div></div> <div></div> <div></div> <div></div> </div> </div>');
+
+        }else if(type === 'MATCHING')                   //等待匹配比赛
+        {
+                  var chatMessage1 ={
+                    type: 'MATCHING',
+                    sender: userID,
+                    content: 'query Match results'
+                };
+                stompClient.send("/app/game.Matching",{},JSON.stringify(chatMessage1));
+        }else if (type === 'MATCH'){
+            var chatMessage2 ={
+                type: 'DO_EXAM',
+                sender: userID,
+                content: 'Start Exam'
+            };
+            stompClient.send("/app/game.quest",{},JSON.stringify(chatMessage2));
+        }else if (type === 'GQUEST'){
+            var chatMessage3 ={
+                type: 'DO_EXAM',
+                sender: userID,
+                content: 'get question'
+            };
+            var data = chatmsg.content;
+            init = JSON.parse(data);
+            stompClient.send("/app/game.InGame",{},JSON.stringify(chatMessage3));
+
+
+        } else if(type === 'DO_EXAM'){
+            //TODO 初始化答题界面
+            document.title = "开始答题";
+            // $("#mainContent").innerHTML = ('<div class="demo"> <div id="quiz-container"></div> </div>');
+            timestarter = '<div class="clock" > <span id="hou">00</span>:<span id="min">00</span>:<span id="sec">00</span></div>';
+            //$("#mainContent").html();
+            //document.body.innerHTML = timestarter+ '<div class="demo"> <div id="quiz-container"></div> </div>';
+            $("body").html('<div class="atom-wrapper"><div class="demo"> <div id="quiz-container"></div> </div></div>'+timestarter);
+            timeStep();
+            $('#quiz-container').jquizzy({
+                questions: init.questions
+            });
+
+
+        }else if(type ==='FINISH_PAIR'){
+            //TODO 结算界面
+            var data1 = chatmsg.content;
+            var reportform = JSON.parse(data1);
+            var opponentID = Number(reportform.userid);
+            var opponentTrue = Number(reportform.truenum);
+            var opponentScore = Number(reportform.score);
+            //TODO 用于初始化结算界面
+            if(opponentScore > Ownscore){
+                //window.alert("结束,失败");
+                $("#dialog_main").html(
+                    "            <video id='video_play' preload muted autoplay=\"autoplay\" loop=\"loop\" class=\"animationV\">\n" +
+                    "                <source src=\"media/scene1.mp4\" type=\"video/mp4\">\n" +
+                    "            </video>\n" );
+            }else if (opponentScore < Ownscore) {
+               // window.alert("结束，胜利")
+                $("#dialog_main").html(
+                    "            <video id='video_play' preload muted autoplay=\"autoplay\" loop=\"loop\" class=\"animationV\">\n" +
+                    "                <source src=\"media/scene2.mp4\" type=\"video/mp4\">\n" +
+                    "            </video>\n" );
+            }else{
+                $("#dialog_main").html(
+                    "            <video id='video_play' preload muted autoplay=\"autoplay\" loop=\"loop\" class=\"animationV\">\n" +
+                    "                <source src=\"media/scene4.mp4\" type=\"video/mp4\">\n" +
+                    "            </video>\n" );
+            }
+            toggleDialog(true);
+        }else if(type === 'FINISH_NOPAIR'){
+            //TODO 等待对方完成
+        } else if (type === 'WAIT'){
+            //TODO 结算一次，准备界面
+            var chatMessage4 ={
+                type: 'DO_EXAM',
+                sender: userID,
+                content: '提交结算'
+            };
+            stompClient.send("/app/game.finish",{},JSON.stringify(chatMessage4));
+
+            var dialogHtml ="<div id=\"dialog-face\" class=\"none\">\n" +
+                "</div>\n" +
+                "<div id=\"dialog\" class=\"none\">\n" +
+                "    <div id=\"dialog-wrapper\">\n" +
+                "        <div id='dialog_main' class=\"dialog-content\">\n" +
+                "        </div>\n" +
+                "        <div class=\"dialog-footer\">\n" +
+                "            <button onclick=\"toggleDialog(false)\">关闭</button>\n" +
+                "        </div>\n" +
+                "    </div>\n" +
+                "</div>"
+            $("body").append(dialogHtml);
+        }else if(type ==='OVERTIME'){
+            //TODO 直接给出失败界面，超时,给爷死
+            $("#dialog_main").html(
+                "            <video id='video_play' preload muted autoplay=\"autoplay\" loop=\"loop\" class=\"animationV\">\n" +
+                "                <source src=\"media/scene4.mp4\" type=\"video/mp4\">\n" +
+                "            </video>\n" );
+            toggleDialog(true);
+        } else{
+            console.log("server send an unrecognized message");
+        }
+    }else if(code === 201){
+        //TODO 提示无法在同一时间登录两个账号
+        window.alert("该账号已在另外一场游戏中，请勿打扰")
+    }
+
+}
+
+
 (function($) {
     $.fn.jquizzy = function(settings) {
         var defaults = {
@@ -11,7 +196,7 @@
             startImg: 'images/start.gif',
             endText: '已结束!',
             shortURL: null,
-            sendResultsURL: null,
+            sendResultsURL: "server",
             resultComments: {
                 perfect: '你是爱因斯坦么?',
                 excellent: '非常优秀!',
@@ -23,24 +208,20 @@
             }
         };
         var config = $.extend(defaults, settings);
+        if (config.questions === null) {
+            $(this).html('<div class="intro-container slide-container"><h2 class="qTitle">Failed to parse questions.</h2></div>');
+            return;
+        }
         var superContainer = $(this),
         answers = [],
-        words = [],
-        introFob = '	<div class="intro-container slide-container"><a class="nav-start" href="#">请认真完成测试题。准备好了吗？<br/><br/><span><img src="'+config.startImg+'"></span></a></div>	',
-        exitFob = '<div class="results-container slide-container"><div class="question-number">' + config.endText + '</div><div class="result-keeper"></div></div><div style="height:50px;"><a style="padding:10px 10px 10px 100px;font-size:20px;color:#F00" href="ability_check">返回(答题途中返回进度不会保存！)</a></div><div class="notice">请选择一个选项！</div><div class="progress-keeper" ><div class="progress"></div></div>',
+        introFob = '	<div class="intro-container slide-container"><a class="nav-start" href="#">请认真完成测试题。准备好了吗？注意右上角时间哦<br/><br/><span><img src="'+config.startImg+'"></span></a></div>	',
+        exitFob = '<div class="results-container slide-container"><div class="question-number">' + config.endText + '</div><div class="result-keeper"></div></div><div class="notice">请选择一个选项！</div><div class="progress-keeper" ><div class="progress"></div></div>',
         contentFob = '',
         questionsIteratorIndex,
-        answersIteratorIndex,
-        list={};
+        answersIteratorIndex;
         superContainer.addClass('main-quiz-holder');
         for (questionsIteratorIndex = 0; questionsIteratorIndex < config.questions.length; questionsIteratorIndex++) {
-            list +="<audio id=\""+config.questions[questionsIteratorIndex].word+"\" src='http://dict.youdao.com/dictvoice?audio="+config.questions[questionsIteratorIndex].word+"'></audio>";
-            if(config.questions[questionsIteratorIndex].kind==2){
-                contentFob += '<div class="slide-container"><div class="question-number">' + (questionsIteratorIndex + 1) + '/' + config.questions.length + '</div><div class="question">' + config.questions[questionsIteratorIndex].question+"<a title=\"发音\" href=\"javascript:void(0)\" onclick=\"play("+config.questions[questionsIteratorIndex].word+");\" class=\"icon_s\"></a>" + '</div><ul class="answers">';
-            }else{
-                contentFob += '<div class="slide-container"><div class="question-number">' + (questionsIteratorIndex + 1) + '/' + config.questions.length + '</div><div class="question">' + config.questions[questionsIteratorIndex].question + '</div><ul class="answers">';
-            }
-            
+            contentFob += '<div class="slide-container"><div class="question-number">' + (questionsIteratorIndex + 1) + '/' + config.questions.length + '</div><div class="question">' + config.questions[questionsIteratorIndex].question + '</div><ul class="answers">';
             for (answersIteratorIndex = 0; answersIteratorIndex < config.questions[questionsIteratorIndex].answers.length; answersIteratorIndex++) {
                 contentFob += '<li>' + config.questions[questionsIteratorIndex].answers[answersIteratorIndex] + '</li>';
             }
@@ -55,9 +236,7 @@
             }
             contentFob += '</div></div>';
             answers.push(config.questions[questionsIteratorIndex].correctAnswer);
-            words.push(config.questions[questionsIteratorIndex].word);
         }
-        document.getElementById("fayin").innerHTML = list;
         superContainer.html(introFob + contentFob + exitFob);
         var progress = superContainer.find('.progress'),
         progressKeeper = superContainer.find('.progress-keeper'),
@@ -72,26 +251,13 @@
             for (i = 0; i < answers.length; i++) {
                 if (answers[i] == userAnswers[i]) {
                     flag = true;
-                    if(list_right === ""){
-                        list_right+=words[i];
-                    }else{
-                        list_right+=','+words[i];
-                    }
-                    
                 } else {
                     flag = false;
-                    if(list_wrong === ""){
-                        list_wrong+=words[i];
-                    }else{
-                        list_wrong+=','+words[i];
-                    }
                 }
-
                 resultArr.push(flag);
             }
             return resultArr;
         }
-       
         function roundReloaded(num, dec) {
             var result = Math.round(num * Math.pow(10, dec)) / Math.pow(10, dec);
             return result;
@@ -162,20 +328,7 @@
             superContainer.find('li.selected').each(function(index) {
                 userAnswers.push($(this).parents('.answers').children('li').index($(this).parents('.answers').find('li.selected')) + 1);
             });
-            if (config.sendResultsURL !== null) {
-                var collate = [];
-                for (r = 0; r < userAnswers.length; r++) {
-                    collate.push('{"questionNumber":"' + parseInt(r + 1, 10) + '", "userAnswer":"' + userAnswers[r] + '"}');
-                }
-                $.ajax({
-                    type: 'POST',
-                    url: config.sendResultsURL,
-                    data: '{"answers": [' + collate.join(",") + ']}',
-                    complete: function() {
-                        console.log("OH HAI");
-                    }
-                });
-            }
+
             progressKeeper.hide();
             var results = checkAnswers(),
             resultSet = '',
@@ -183,23 +336,6 @@
             shareButton = '',
             score,
             url;
-            //发送错误以及正确的单词
-            var params={};
-  
-            params.correct=list_right;
-            params.wrong=list_wrong;
-            $.ajax({
-                async:false,
-                type: "POST",
-                url: "finish_exam",
-                data:params,
-                dataType:"json",
-                success:function(data){
-                },
-                error:function(data){
-                }
-            }); 
-
             if (config.shortURL === null) {
                 config.shortURL = window.location
             };
@@ -214,21 +350,36 @@
                 resultSet += "<ul>";
                 for (answersIteratorIndex = 0; answersIteratorIndex < config.questions[i].answers.length; answersIteratorIndex++) {
                     var classestoAdd = '';
-                    var your_answer ='';
                     if (config.questions[i].correctAnswer == answersIteratorIndex + 1) {
                         classestoAdd += 'right';
-                        your_answer+='正确答案,';
                     }
                     if (userAnswers[i] == answersIteratorIndex + 1) {
-                        classestoAdd += 'selected';
-                        your_answer+='你选择的答案,';
+                        classestoAdd += ' selected';
                     }
-                    resultSet += '<li class="' + classestoAdd + '">' +your_answer+ config.questions[i].answers[answersIteratorIndex] + '</li>';
+                    resultSet += '<li class="' + classestoAdd + '">' + config.questions[i].answers[answersIteratorIndex] + '</li>';
                 }
                 resultSet += '</ul></div></div>';
             }
             score = roundReloaded(trueCount / questionLength * 100, 2);
-            
+            if (config.sendResultsURL !== null) {
+                var resultform = {
+                    "userid" : Number(userID),
+                    "score": score,
+                    "truenum" : trueCount
+                };
+                Ownscore = score;
+                OwnTrue = trueCount;
+                stompClient.send("/app/game.submit",{},JSON.stringify(resultform));
+                // $.ajax({
+                //     type: 'POST',
+                //     url: config.sendResultsURL,
+                //     data: '{"answers": [' + collate.join(",") + ']}',
+                //     complete: function() {
+                //         console.log("OH HAI");
+                //     }
+                // });
+            }
+
             resultSet = '<h2 class="qTitle">' + judgeSkills(score) + '<br/> 您的分数： ' + score + '</h2>' + shareButton + '<div class="jquizzy-clear"></div>' + resultSet + '<div class="jquizzy-clear"></div>';
             superContainer.find('.result-keeper').html(resultSet).show(500);
             superContainer.find('.resultsview-qhover').hide();

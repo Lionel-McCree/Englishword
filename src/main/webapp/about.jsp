@@ -34,7 +34,7 @@
       <a href="about.jsp" class="active">关于</a>
     </div>
     <ul class="layui-nav header-down-nav">
-      <li class="layui-nav-item"><a href="user_main">Welcome！</a></li>
+      <li class="layui-nav-item"><a href="user_main.jsp">Welcome！</a></li>
       <li class="layui-nav-item"><a href="plan_choice">选择计划</a></li>
       <li class="layui-nav-item"><a href="dictionary">词典</a></li>
       <li class="layui-nav-item"><a href="ability_check">能力检测</a></li>

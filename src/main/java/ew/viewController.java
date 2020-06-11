@@ -31,6 +31,11 @@ public class viewController {
 	
 	
 	
+	
+	@RequestMapping("/fight")
+	String fight() {
+		return "learning_window/fight.jsp";
+	}
 	@RequestMapping("/test")
 	String testui() {
 		return "learning_window/index.jsp";
